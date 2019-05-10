@@ -1,69 +1,79 @@
 package net.doubledoordev.itemblacklist.util;
 
-import net.minecraft.client.renderer.block.model.ModelResourceLocation;
+import cpw.mods.fml.relauncher.Side;
+import cpw.mods.fml.relauncher.SideOnly;
+import net.minecraft.client.renderer.texture.IIconRegister;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
-import net.minecraftforge.client.model.ModelLoader;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.util.IIcon;
 
-/**
- * @author Dries007
- */
-public class ItemBlacklisted extends Item
-{
-    public static final String NAME = "blacklisted";
-    public static final ItemBlacklisted I = new ItemBlacklisted();
+public class ItemBlacklisted extends Item {
+   public static final String NAME = "blacklisted";
+   public static final ItemBlacklisted I = new ItemBlacklisted();
+   private IIcon itemIconError;
 
-    private ItemBlacklisted()
-    {
-        setTranslationKey("blacklisted");
-        setRegistryName("itemblacklist", NAME);
-        setMaxStackSize(1);
-    }
+   private ItemBlacklisted() {
+      this.setUnlocalizedName("blacklisted");
+      this.setTextureName("ItemBlacklist".concat(":").concat("blacklisted").toLowerCase());
+      this.setMaxStackSize(1);
+   }
 
-    public static ItemStack pack(ItemStack in)
-    {
-        ItemStack out = new ItemStack(ItemBlacklisted.I);
-        out.setTagInfo("item", in.writeToNBT(new NBTTagCompound()));
-        return out;
-    }
+   public static ItemStack pack(ItemStack in) {
+      ItemStack out = new ItemStack(I);
+      out.setTagInfo("item", in.writeToNBT(new NBTTagCompound()));
+      return out;
+   }
 
-    public static boolean canUnpack(ItemStack in)
-    {
-        return in != null && in.hasTagCompound() && in.getTagCompound().hasKey("item");
-    }
+   public static boolean canUnpack(ItemStack in) {
+      return in != null && in.hasTagCompound() && in.getTagCompound().hasKey("item");
+   }
 
-    /**
-     * Avoids returning null as best as possible
-     */
-    public static ItemStack unpack(ItemStack in)
-    {
-        ItemStack out = null;
-        try
-        {
-            out = new ItemStack(in.getTagCompound().getCompoundTag("item"));
-        }
-        catch (Exception e)
-        {
-            e.printStackTrace();
-        }
-        return out == null ? in : out;
-    }
+   public static ItemStack unpack(ItemStack in) {
+      ItemStack out = null;
 
-    @Override
-    public String getTranslationKey(ItemStack in)
-    {
-        if (!canUnpack(in)) return "_ERROR_";
-        ItemStack unpack = unpack(in);
-        if (unpack == in || unpack == null) return "_ERROR_";
-        return unpack.getTranslationKey();
-    }
+      try {
+         out = ItemStack.loadItemStackFromNBT(in.getTagCompound().getCompoundTag("item"));
+      } catch (Exception var3) {
+         var3.printStackTrace();
+      }
 
-    @SideOnly(Side.CLIENT)
-    public void initModel()
-    {
-        ModelLoader.setCustomModelResourceLocation(this, 0, new ModelResourceLocation("itemblacklist:blacklisted", "inventory"));
-    }
+      return out == null ? in : out;
+   }
+
+   public String getUnlocalizedName(ItemStack in) {
+      if (!canUnpack(in)) {
+         return "_ERROR_";
+      } else {
+         ItemStack unpack = unpack(in);
+         return unpack != in && unpack != null ? unpack.getUnlocalizedName() : "_ERROR_";
+      }
+   }
+
+   public boolean requiresMultipleRenderPasses() {
+      return true;
+   }
+
+   @SideOnly(Side.CLIENT)
+   public void registerIcons(IIconRegister iconRegister) {
+      super.registerIcons(iconRegister);
+      this.itemIconError = iconRegister.registerIcon(this.getIconString().concat("_error"));
+   }
+
+   @SideOnly(Side.CLIENT)
+   public IIcon getIcon(ItemStack stack, int pass) {
+      if (canUnpack(stack) && pass == 0) {
+         ItemStack unpack = unpack(stack);
+         if (unpack.getItemSpriteNumber() == this.getSpriteNumber()) {
+            IIcon icon = unpack.getItem().getIcon(unpack, 0);
+            if (icon != null) {
+               return icon;
+            }
+
+            return this.itemIconError;
+         }
+      }
+
+      return this.itemIcon;
+   }
 }

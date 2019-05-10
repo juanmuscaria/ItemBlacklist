@@ -1,304 +1,314 @@
 package net.doubledoordev.itemblacklist.util;
 
+import cpw.mods.fml.common.registry.GameRegistry;
 import net.doubledoordev.itemblacklist.Helper;
+import net.doubledoordev.itemblacklist.ItemBlacklist;
 import net.doubledoordev.itemblacklist.data.BanList;
 import net.doubledoordev.itemblacklist.data.BanListEntry;
 import net.doubledoordev.itemblacklist.data.GlobalBanList;
-import net.minecraft.command.*;
+import net.minecraft.command.CommandBase;
+import net.minecraft.command.CommandException;
+import net.minecraft.command.ICommandSender;
+import net.minecraft.command.WrongUsageException;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.Style;
-import net.minecraft.util.text.TextComponentString;
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.ChatStyle;
+import net.minecraft.util.IChatComponent;
+import net.minecraftforge.common.DimensionManager;
 import net.minecraftforge.oredict.OreDictionary;
 
-import javax.annotation.Nullable;
+import java.io.File;
+import java.io.PrintWriter;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
-import static net.minecraft.util.text.TextFormatting.*;
+import static net.minecraft.util.EnumChatFormatting.*;
 
 /**
  * @author Dries007
  */
 public class CommandBlockItem extends CommandBase
 {
-    public static final CommandBlockItem I = new CommandBlockItem();
+   public static class Pair<K, V>
+   {
+      public K k;
+      public V v;
 
-    private CommandBlockItem() {}
+      public Pair(K k, V v)
+      {
+         this.k = k;
+         this.v = v;
+      }
+   }
 
-    @Override
-    public String getName()
-    {
-        return "blockitem";
-    }
+   @Override
+   public String getCommandName()
+   {
+      return "blockitem";
+   }
 
-    @Override
-    public List<String> getAliases()
-    {
-        return Arrays.asList("itemblacklist", "blacklist");
-    }
+   @Override
+   public List getCommandAliases()
+   {
+      return Arrays.asList("itemblacklist", "blacklist","banitem");
+   }
 
-    @Override
-    public String getUsage(ICommandSender p_71518_1_)
-    {
-        return "Use '/blockitem help' for more info.";
-    }
+   @Override
+   public String getCommandUsage(ICommandSender p_71518_1_)
+   {
+      return "Use '/blockitem help' for more info.";
+   }
 
-    @Override
-    public void execute(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException
-    {
-        if (args.length == 0)
-        {
-            sender.sendMessage(new TextComponentString("Possible subcommands:").setStyle(new Style().setColor(GOLD)));
-            sender.sendMessage(makeHelpText("reload", "Reloads the config file from disk."));
-            sender.sendMessage(makeHelpText("pack [player]", "Lock banned items in targets inventory."));
-            sender.sendMessage(makeHelpText("unpack [player]", "Unlock banned items in targets inventory."));
-            sender.sendMessage(makeHelpText("list [dim|player]", "List banned items of all, player, or dim"));
-            sender.sendMessage(makeHelpText("ban [dim list] [item[:*|meta]]", "Ban an item."));
-            sender.sendMessage(makeHelpText("unban [dim list] [item[:*|meta]]", "Unban an item."));
-            return;
-        }
-        String arg0 = args[0].toLowerCase();
-        boolean unpack = false;
-        switch (arg0)
-        {
-            default:
-                throw new WrongUsageException("Unknown subcommand. Use '/blockitem' to get some help.");
-            case "reload":
-                GlobalBanList.init(server);
-                // No break
-                sender.sendMessage(new TextComponentString("Reloaded!").setStyle(new Style().setColor(GREEN)));
-            case "list":
-                list(server, sender, args);
-                break;
-            case "unpack":
-                unpack = true;
-            case "pack":
-                EntityPlayer player = args.length > 1 ? getPlayer(server, sender, args[1]) : getCommandSenderAsPlayer(sender);
-                int count = GlobalBanList.process(player.dimension, player.inventory, unpack);
-                sender.sendMessage(new TextComponentString((unpack ? "Unlocked " : "Locked ") + count + " items."));
-                break;
-            case "ban":
-                try
-                {
-                    Pair<String, BanListEntry> toBan = parse(sender, args);
-                    GlobalBanList.worldInstance.add(toBan.k, toBan.v);
-                    sender.sendMessage(new TextComponentString("Banned " + toBan.v.toString() + " in " + toBan.k).setStyle(new Style().setColor(GREEN)));
-                }
-                catch (Exception e)
-                {
-                    e.printStackTrace();
-                    throw new WrongUsageException(e.getMessage());
-                }
-                break;
-            case "unban":
-                try
-                {
-                    Pair<String, BanListEntry> toBan = parse(sender, args);
-                    if (GlobalBanList.worldInstance.remove(toBan.k, toBan.v))
-                        sender.sendMessage(new TextComponentString("Unbanned " + toBan.v.toString() + " in " + toBan.k).setStyle(new Style().setColor(GREEN)));
-                    else
-                        sender.sendMessage(new TextComponentString("Can't unban " + toBan.v.toString() + " in " + toBan.k).setStyle(new Style().setColor(RED)));
-                }
-                catch (Exception e)
-                {
-                    e.printStackTrace();
-                    throw new WrongUsageException(e.getMessage());
-                }
-                break;
-        }
-    }
+   @Override
+   public void processCommand(ICommandSender sender, String[] args)
+   {
+      if (args.length == 0)
+      {
+         sender.addChatMessage(new ChatComponentText("Possible subcommands:").setChatStyle(new ChatStyle().setColor(GOLD)));
+         sender.addChatMessage(makeHelpText("reload", "Reloads the config file from disk."));
+         sender.addChatMessage(makeHelpText("pack [player]", "Lock banned items in targets inventory."));
+         sender.addChatMessage(makeHelpText("unpack [player]", "Unlock banned items in targets inventory."));
+         sender.addChatMessage(makeHelpText("list [dim|player]", "List banned items of all, player, or dim"));
+         sender.addChatMessage(makeHelpText("ban [dim list] [item[:*|meta]]", "Ban an item."));
+         sender.addChatMessage(makeHelpText("unban [dim list] [item[:*|meta]]", "Unban an item."));
+         return;
+      }
+      String arg0 = args[0].toLowerCase();
+      boolean unpack = false;
+      switch (arg0)
+      {
+         default:
+            throw new WrongUsageException("Unknown subcommand. Use '/blockitem' to get some help.");
+         case "reload":
+            GlobalBanList.init();
+            try {
+               File mtDir = new File("scripts");
+               if (!mtDir.exists()){
+                  ItemBlacklist.logger.error("Não foi possivel encontrar o diretorio do mt");
+                  return;
+               }
+               File script = new File("scripts" + File.separator + "banitem.zs");
+               script.createNewFile();
+               PrintWriter writer = new PrintWriter(script);
+               writer.print("");
+               HashSet<BanList> worldSet = new HashSet<>(GlobalBanList.worldInstance.dimesionMap.values());
+               worldSet.add(GlobalBanList.worldInstance.getGlobal());
+               for (BanList list : worldSet)
+               {
+                  String dim = list.getDimension();
+                  String tooltip;
+                  if (dim.equals(GlobalBanList.GLOBAL_NAME))tooltip = "Item Banido";
+                  else tooltip = "Item banido no :" + DimensionManager.getWorld(Integer.valueOf(dim)).provider.getDimensionName();
+                  for (HashMap.Entry<Item,BanListEntry> entry: list.banListEntryMap.entries())
+                  {
+                     writer.append("<"+GameRegistry.findUniqueIdentifierFor(entry.getKey())+":"+String.valueOf( entry.getValue().getDamage())+">.addTooltip(format.red(\""+tooltip+"\"));\n");
+                  }
+               }
+               writer.close();
 
-    private Pair<String, BanListEntry> parse(ICommandSender sender, String[] args) throws PlayerNotFoundException, WrongUsageException
-    {
-        String dimensions = null;
-        boolean wildcardOverride = false;
-        int meta = OreDictionary.WILDCARD_VALUE;
-        BanListEntry banListEntry = null;
-
-        for (int i = 1; i < args.length; i++)
-        {
-            if (args[i].equals(GlobalBanList.GLOBAL_NAME))
-            {
-                dimensions = GlobalBanList.GLOBAL_NAME;
-                continue;
             }
+            catch (Exception e){
+               e.printStackTrace();
+            }
+            // No break
+            sender.addChatMessage(new ChatComponentText("Reloaded!").setChatStyle(new ChatStyle().setColor(GREEN)));
+         case "list":
+            list(sender, args);
+            break;
+         case "unpack":
+            unpack = true;
+         case "pack":
+            EntityPlayer player = args.length > 1 ? getPlayer(sender, args[1]) : getCommandSenderAsPlayer(sender);
+            int count = GlobalBanList.process(player.dimension, player.inventory, unpack);
+            sender.addChatMessage(new ChatComponentText((unpack ? "Unlocked " : "Locked ") + count + " items."));
+            break;
+         case "ban":
             try
             {
-                Helper.parseDimIds(args[i]);
-                if (dimensions != null)
-                    throw new WrongUsageException("Double dimension specifiers: " + dimensions + " AND " + args[i]);
-                dimensions = args[i];
-                continue;
+               Pair<String, BanListEntry> toBan = parse(sender, args);
+               GlobalBanList.worldInstance.add(toBan.k, toBan.v);
+               sender.addChatMessage(new ChatComponentText("Banned " + toBan.v.toString() + " in " + toBan.k).setChatStyle(new ChatStyle().setColor(GREEN)));
             }
-            catch (Exception ignored) {}
+            catch (Exception e)
+            {
+               if (e instanceof CommandException) throw e;
+               e.printStackTrace();
+               throw new WrongUsageException(e.getMessage());
+            }
+            break;
+         case "unban":
             try
             {
-                String[] split = args[i].split(":");
-                if (split.length > 3) throw new WrongUsageException("Item name not valid.");
-                meta = split.length == 3 ? parseInt(split[2]) : OreDictionary.WILDCARD_VALUE;
-                if (banListEntry != null)
-                    throw new WrongUsageException("Double item specifiers: " + banListEntry + " AND " + args[i]);
-                banListEntry = new BanListEntry(split[0] + ":" + split[1], meta);
-                continue;
+               Pair<String, BanListEntry> toBan = parse(sender, args);
+               if (GlobalBanList.worldInstance.remove(toBan.k, toBan.v)) sender.addChatMessage(new ChatComponentText("Unbanned " + toBan.v.toString() + " in " + toBan.k).setChatStyle(new ChatStyle().setColor(GREEN)));
+               else sender.addChatMessage(new ChatComponentText("Can't unban " + toBan.v.toString() + " in " + toBan.k).setChatStyle(new ChatStyle().setColor(RED)));
             }
-            catch (Exception ignored) {}
-            if (args[i].equals("*"))
+            catch (Exception e)
             {
-                wildcardOverride = true;
-                continue;
+               if (e instanceof CommandException) throw e;
+               e.printStackTrace();
+               throw new WrongUsageException(e.getMessage());
             }
-            throw new IllegalArgumentException("Not a dimension specifier or valid item: " + args[i]);
-        }
-        // Default to current dimension and held item
-        if (dimensions == null) dimensions = String.valueOf(getCommandSenderAsPlayer(sender).dimension);
-        if (banListEntry == null)
-        {
-            EntityPlayer player = getCommandSenderAsPlayer(sender);
-            ItemStack stack = player.getHeldItem(EnumHand.MAIN_HAND);
-            if (stack.isEmpty()) throw new WrongUsageException("No item specified and no item held.");
-            if (wildcardOverride) meta = OreDictionary.WILDCARD_VALUE;
-            banListEntry = new BanListEntry(stack.getItem().getRegistryName(), meta);
-        }
-        return new Pair<>(dimensions, banListEntry);
-    }
+            break;
+      }
+   }
 
-    private void list(ICommandSender sender, HashSet<BanList> set)
-    {
-        for (BanList list : set)
-        {
-            sender.sendMessage(new TextComponentString("Dimension " + list.getDimension()).setStyle(new Style().setColor(AQUA)));
-            for (BanListEntry entry : list.banListEntryMap.values())
-            {
-                sender.sendMessage(new TextComponentString(entry.toString()));
-            }
-        }
-    }
+   private Pair<String, BanListEntry> parse(ICommandSender sender, String[] args)
+   {
+      String dimensions = null;
+      boolean wildcardOverride = false;
+      int meta = OreDictionary.WILDCARD_VALUE;
+      BanListEntry banListEntry = null;
 
-    private void list(MinecraftServer server, ICommandSender sender, String[] args) throws WrongUsageException
-    {
-        HashSet<BanList> packSet = new HashSet<>();
-        HashSet<BanList> worldSet = new HashSet<>();
-        if (args.length == 1)
-        {
-            worldSet.addAll(GlobalBanList.worldInstance.dimesionMap.values());
-            worldSet.add(GlobalBanList.worldInstance.getGlobal());
+      for (int i = 1; i < args.length; i++)
+      {
+         if (args[i].equals(GlobalBanList.GLOBAL_NAME))
+         {
+            dimensions = GlobalBanList.GLOBAL_NAME;
+            continue;
+         }
+         try
+         {
+            Helper.parseDimIds(args[i]);
+            if (dimensions != null) throw new WrongUsageException("Double dimension specifiers: " + dimensions + " AND " + args[i]);
+            dimensions = args[i];
+            continue;
+         }
+         catch (Exception ignored) {}
+         try
+         {
+            String[] split = args[i].split(":");
+            if (split.length > 3) throw new WrongUsageException("Item name not valid.");
+            meta = split.length == 3 ? parseInt(sender, split[2]) : OreDictionary.WILDCARD_VALUE;
+            if (banListEntry != null) throw new WrongUsageException("Double item specifiers: " + banListEntry + " AND " + args[i]);
+            banListEntry = new BanListEntry(split[0] + ":" + split[1], meta);
+            continue;
+         }
+         catch (Exception ignored) {}
+         if (args[i].equals("*"))
+         {
+            wildcardOverride = true;
+            continue;
+         }
+         throw new IllegalArgumentException("Not a dimension specifier or valid item: " + args[i]);
+      }
+      // Default to current dimension and held item
+      if (dimensions == null) dimensions = String.valueOf(getCommandSenderAsPlayer(sender).dimension);
+      if (banListEntry == null)
+      {
+         EntityPlayer player = getCommandSenderAsPlayer(sender);
+         ItemStack stack = player.getHeldItem();
+         if (stack == null) throw new WrongUsageException("No item specified and no item held.");
+         if (wildcardOverride) meta = OreDictionary.WILDCARD_VALUE;
+         banListEntry = new BanListEntry(GameRegistry.findUniqueIdentifierFor(stack.getItem()), meta);
+      }
+      return new Pair<>(dimensions, banListEntry);
+   }
 
-            if (GlobalBanList.packInstance != null)
-            {
-                packSet.addAll(GlobalBanList.packInstance.dimesionMap.values());
-                packSet.add(GlobalBanList.packInstance.getGlobal());
-            }
-        }
-        else
-        {
-            if (args[1].equalsIgnoreCase(GlobalBanList.GLOBAL_NAME))
-                worldSet.add(GlobalBanList.worldInstance.getGlobal());
-            else worldSet.addAll(GlobalBanList.worldInstance.dimesionMap.get(getDimension(server, sender, args[1])));
+   private void list(ICommandSender sender, HashSet<BanList> set)
+   {
+      for (BanList list : set)
+      {
+         sender.addChatMessage(new ChatComponentText("Dimension " + list.getDimension()).setChatStyle(new ChatStyle().setColor(AQUA)));
+         for (BanListEntry entry : list.banListEntryMap.values())
+         {
+            sender.addChatMessage(new ChatComponentText(entry.toString()));
+         }
+      }
+   }
 
-            if (GlobalBanList.packInstance != null)
-            {
-                if (args[1].equalsIgnoreCase(GlobalBanList.GLOBAL_NAME))
-                    packSet.add(GlobalBanList.packInstance.getGlobal());
-                else packSet.addAll(GlobalBanList.packInstance.dimesionMap.get(getDimension(server, sender, args[1])));
-            }
-        }
-        if (worldSet.isEmpty())
-            sender.sendMessage(new TextComponentString("No world banned items.").setStyle(new Style().setColor(YELLOW)));
-        else
-        {
-            sender.sendMessage(new TextComponentString("World banned items:").setStyle(new Style().setColor(YELLOW)));
-            list(sender, worldSet);
-        }
+   private void list(ICommandSender sender, String[] args)
+   {
+      HashSet<BanList> packSet = new HashSet<>();
+      HashSet<BanList> worldSet = new HashSet<>();
+      if (args.length == 1)
+      {
+         worldSet.addAll(GlobalBanList.worldInstance.dimesionMap.values());
+         worldSet.add(GlobalBanList.worldInstance.getGlobal());
 
-        if (packSet.isEmpty())
-            sender.sendMessage(new TextComponentString("No pack banned items. ").setStyle(new Style().setColor(YELLOW)).appendSibling(new TextComponentString("[unchangeable]").setStyle(new Style().setColor(RED))));
-        else
-        {
-            sender.sendMessage(new TextComponentString("Pack banned items: ").setStyle(new Style().setColor(YELLOW)).appendSibling(new TextComponentString("[unchangeable]").setStyle(new Style().setColor(RED))));
-            list(sender, packSet);
-        }
-    }
+         if (GlobalBanList.packInstance != null)
+         {
+            packSet.addAll(GlobalBanList.packInstance.dimesionMap.values());
+            packSet.add(GlobalBanList.packInstance.getGlobal());
+         }
+      }
+      else
+      {
+         if (args[1].equalsIgnoreCase(GlobalBanList.GLOBAL_NAME)) worldSet.add(GlobalBanList.worldInstance.getGlobal());
+         else worldSet.addAll(GlobalBanList.worldInstance.dimesionMap.get(getDimension(sender, args[1])));
 
-    private int getDimension(MinecraftServer server, ICommandSender sender, String arg) throws WrongUsageException
-    {
-        try
-        {
-            return Integer.parseInt(arg);
-        }
-        catch (Exception ignored)
-        {
+         if (GlobalBanList.packInstance != null)
+         {
+            if (args[1].equalsIgnoreCase(GlobalBanList.GLOBAL_NAME)) packSet.add(GlobalBanList.packInstance.getGlobal());
+            else packSet.addAll(GlobalBanList.packInstance.dimesionMap.get(getDimension(sender, args[1])));
+         }
+      }
+      if (worldSet.isEmpty()) sender.addChatMessage(new ChatComponentText("No world banned items.").setChatStyle(new ChatStyle().setColor(YELLOW)));
+      else
+      {
+         sender.addChatMessage(new ChatComponentText("World banned items:").setChatStyle(new ChatStyle().setColor(YELLOW)));
+         list(sender, worldSet);
+      }
 
-        }
-        try
-        {
-            return getEntity(server, sender, arg).dimension;
-        }
-        catch (EntityNotFoundException ignored)
-        {
+      if (packSet.isEmpty()) sender.addChatMessage(new ChatComponentText("No pack banned items. ").setChatStyle(new ChatStyle().setColor(YELLOW)).appendSibling(new ChatComponentText("[unchangeable]").setChatStyle(new ChatStyle().setColor(RED))));
+      else
+      {
+         sender.addChatMessage(new ChatComponentText("Pack banned items: ").setChatStyle(new ChatStyle().setColor(YELLOW)).appendSibling(new ChatComponentText("[unchangeable]").setChatStyle(new ChatStyle().setColor(RED))));
+         list(sender, packSet);
+      }
+   }
 
-        }
-        catch (CommandException e)
-        {
-            e.printStackTrace();
-        }
-        throw new WrongUsageException("%s is not an entity or a number", arg);
-    }
+   private int getDimension(ICommandSender sender, String arg)
+   {
+      try
+      {
+         return parseInt(sender, arg);
+      }
+      catch (Exception e)
+      {
+         return getPlayer(sender, arg).dimension;
+      }
+   }
 
-    public ITextComponent makeHelpText(String name, String text)
-    {
-        return new TextComponentString(name).setStyle(new Style().setColor(AQUA)).appendSibling(new TextComponentString(": " + text).setStyle(new Style().setColor(WHITE)));
-    }
+   public IChatComponent makeHelpText(String name, String text)
+   {
+      return new ChatComponentText(name).setChatStyle(new ChatStyle().setColor(AQUA)).appendSibling(new ChatComponentText(": " + text).setChatStyle(new ChatStyle().setColor(WHITE)));
+   }
 
-    @Override
-    public List<String> getTabCompletions(MinecraftServer server, ICommandSender sender, String[] args, @Nullable BlockPos pos)
-    {
-        if (isUsernameIndex(args, args.length))
-            return getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
-        if (args.length == 1)
-            return getListOfStringsMatchingLastWord(args, "reload", "pack", "unpack", "list", "ban", "unban");
-        if (args[0].equalsIgnoreCase("ban") || args[0].equalsIgnoreCase("unban"))
-        {
-            HashSet<String> set = new HashSet<>();
-            set.add(GlobalBanList.GLOBAL_NAME);
-            // Large item sets will cause the player to lose connection from the server, I don't think there is a way around this.
-            for (ResourceLocation rl : Item.REGISTRY.getKeys())
-                set.add(rl.toString());
-            return getListOfStringsMatchingLastWord(args, set);
-        }
-        return super.getTabCompletions(server, sender, args, pos);
-    }
+   @Override
+   public List addTabCompletionOptions(ICommandSender sender, String[] args)
+   {
+      if (isUsernameIndex(args, args.length)) return getListOfStringsMatchingLastWord(args, MinecraftServer.getServer().getAllUsernames());
+      if (args.length == 1) return getListOfStringsMatchingLastWord(args, "reload", "pack", "unpack", "list", "ban", "unban");
+      if (args[0].equalsIgnoreCase("ban") || args[0].equalsIgnoreCase("unban"))
+      {
+         //noinspection unchecked
+         HashSet set = new HashSet();
+         //noinspection unchecked
+         set.add(GlobalBanList.GLOBAL_NAME);
+         //noinspection unchecked
+         set.addAll(Item.itemRegistry.getKeys());
+         return getListOfStringsFromIterableMatchingLastWord(args, set);
+      }
+      return null;
+   }
 
-    @Override
-    public boolean isUsernameIndex(String[] args, int arg)
-    {
-        if (args.length == 0) return false;
-        switch (args[0].toLowerCase())
-        {
-            case "unpack":
-            case "pack":
-            case "list":
-                return arg == 2;
-        }
-        return false;
-    }
-
-    public static class Pair<K, V>
-    {
-        public K k;
-        public V v;
-
-        public Pair(K k, V v)
-        {
-            this.k = k;
-            this.v = v;
-        }
-    }
+   @Override
+   public boolean isUsernameIndex(String[] args, int arg)
+   {
+      if (args.length == 0) return false;
+      switch (args[0].toLowerCase())
+      {
+         case "unpack":
+         case "pack":
+         case "list":
+            return arg == 2;
+      }
+      return false;
+   }
 }

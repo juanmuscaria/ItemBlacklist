@@ -14,67 +14,65 @@ import java.lang.reflect.Type;
  */
 public class BanList
 {
-    public final Multimap<Item, BanListEntry> banListEntryMap = HashMultimap.create();
-    private String dimension;
+   public final Multimap<Item, BanListEntry> banListEntryMap = HashMultimap.create();
+   private String dimension;
 
-    public BanList(String dimension)
-    {
-        setDimension(dimension);
-        if (!GlobalBanList.GLOBAL_NAME.equals(dimension)) getDimIds(); // Sanity check
-    }
+   public BanList(String dimension)
+   {
+      setDimension(dimension);
+      if (!GlobalBanList.GLOBAL_NAME.equals(dimension)) getDimIds(); // Sanity check
+   }
 
-    private BanList()
-    {
+   private BanList()
+   {
 
-    }
+   }
 
-    public boolean isBanned(ItemStack itemStack)
-    {
-        for (BanListEntry banListEntry : banListEntryMap.get(itemStack.getItem()))
-            if (banListEntry.isBanned(itemStack.getItemDamage())) return true;
-        return false;
-    }
+   public boolean isBanned(ItemStack itemStack)
+   {
+      for (BanListEntry banListEntry : banListEntryMap.get(itemStack.getItem())) if (banListEntry.isBanned(itemStack.getItemDamage())) return true;
+      return false;
+   }
 
-    public int[] getDimIds()
-    {
-        return Helper.parseDimIds(dimension);
-    }
+   public int[] getDimIds()
+   {
+      return Helper.parseDimIds(dimension);
+   }
 
-    public String getDimension()
-    {
-        return dimension;
-    }
+   public String getDimension()
+   {
+      return dimension;
+   }
 
-    public void setDimension(String dimension)
-    {
-        this.dimension = dimension.replaceAll(" ", "");
-    }
+   public void setDimension(String dimension)
+   {
+      this.dimension = dimension.replaceAll(" ", "");
+   }
 
-    public static class Json implements JsonSerializer<BanList>, JsonDeserializer<BanList>
-    {
-        @Override
-        public BanList deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
-        {
-            BanList banList = new BanList();
-            for (JsonElement element : json.getAsJsonArray())
-            {
-                BanListEntry entry = context.deserialize(element, BanListEntry.class);
-                if (banList.banListEntryMap.containsValue(entry))
-                    throw new IllegalArgumentException("Duplicate ban list entry.");
-                banList.banListEntryMap.put(entry.getItem(), entry);
-            }
-            return banList;
-        }
+   public static class Json implements JsonSerializer<BanList>, JsonDeserializer<BanList>
+   {
+      @Override
+      public BanList deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
+      {
+         BanList banList = new BanList();
+         for (JsonElement element : json.getAsJsonArray())
+         {
+            BanListEntry entry = context.deserialize(element, BanListEntry.class);
+            if (banList.banListEntryMap.containsValue(entry)) throw new IllegalArgumentException("Duplicate ban list entry.");
+            banList.banListEntryMap.put(entry.getItem(), entry);
+         }
+         return banList;
+      }
 
-        @Override
-        public JsonElement serialize(BanList src, Type typeOfSrc, JsonSerializationContext context)
-        {
-            JsonArray array = new JsonArray();
-            for (BanListEntry banList : src.banListEntryMap.values())
-            {
-                array.add(context.serialize(banList));
-            }
-            return array;
-        }
-    }
+      @Override
+      public JsonElement serialize(BanList src, Type typeOfSrc, JsonSerializationContext context)
+      {
+         JsonArray array = new JsonArray();
+         for (BanListEntry banList : src.banListEntryMap.values())
+         {
+            array.add(context.serialize(banList));
+         }
+         return array;
+      }
+   }
 }
